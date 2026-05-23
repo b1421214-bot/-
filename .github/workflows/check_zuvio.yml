@@ -2,19 +2,22 @@ name: Zuvio 排程監控
 
 on:
   schedule:
-    # 每 5 分鐘執行一次 (週一至週五，台灣時間 08:00 - 18:00)
+    # 每個星期三，台灣時間 10:00 - 12:20 (UTC 02:00 - 04:20)
     - cron: '*/5 2-4 * * 3'
-  workflow_dispatch: # 允許手動執行測試
+  workflow_dispatch: 
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 新增權限設定，確保 Action 有權讀取倉庫內容
+    permissions:
+      contents: read
     steps:
       - name: 複製程式碼
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # 更新到 v4
 
       - name: 設定 Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # 更新到 v5
         with:
           python-version: '3.9'
 
