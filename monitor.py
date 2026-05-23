@@ -2,28 +2,31 @@ import requests
 import os
 import time
 
-# --- 讀取 Secrets ---
+# --- 讀取 Secrets (已更新為你的設定名稱) ---
 EMAIL = os.environ.get('ZUVIO_EMAIL')
 PWD = os.environ.get('ZUVIO_PASSWORD')
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
+WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK')
 
 # 防呆檢查：如果抓不到會報錯提示
 if not WEBHOOK_URL:
-    raise ValueError("錯誤：找不到 WEBHOOK_URL！請檢查 GitHub Settings 裡的 Secrets 設定。")
+    raise ValueError("錯誤：找不到 DISCORD_WEBHOOK！請檢查 GitHub Settings 裡的 Secrets 名字是否正確。")
 
 MY_COURSE_ID = "1496033"
 TARGET_NAME = "英語聽講(大學土木2乙)"
 
 def send_dc(msg):
+    """發送訊息到 Discord"""
     payload = {"content": msg}
     try:
+        # 這裡使用的是從 DISCORD_WEBHOOK 讀取到的 WEBHOOK_URL
         requests.post(WEBHOOK_URL, json=payload)
     except Exception as e:
         print(f"發送 Discord 失敗: {e}")
 
 def run_monitor():
     s = requests.Session()
-    # 1. 登入
+    
+    # 1. 登入 Zuvio
     login_url = "https://irs.zuvio.com.tw/b_irs/login/login_by_mail"
     login_data = {'email': EMAIL, 'password': PWD}
     s.post(login_url, data=login_data)
@@ -34,12 +37,20 @@ def run_monitor():
     
     # 3. 判斷邏輯
     if "簽到" in res.text or "點名進行中" in res.text:
+        # 如果偵測到點名
         send_dc(f"🚨 偵測到【{TARGET_NAME}】開啟點名！")
+        
+        # 模擬人類反應，延遲 20 秒
         time.sleep(20)
+        
+        # 執行簽到動作
         check_in_url = f"https://irs.zuvio.com.tw/app_v2/check_in/{MY_COURSE_ID}"
         check_res = s.get(check_in_url)
+        
+        # 回傳簽到結果
         send_dc(f"✅ 自動簽到執行完畢。")
     else:
+        # 如果沒在點名 (錄影證明用)
         print("目前沒有點名中")
         send_dc(f"系統巡邏中：目前【{TARGET_NAME}】沒有點名。")
 
