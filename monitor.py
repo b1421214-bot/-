@@ -3,77 +3,66 @@ import requests
 import re
 import time
 
-# 從 GitHub Secrets 讀取資料
 EMAIL = os.environ.get('ZUVIO_EMAIL')
 PWD = os.environ.get('ZUVIO_PASSWORD')
 WEBHOOK = os.environ.get('DISCORD_WEBHOOK')
 
-# 目標課程名稱
-TARGET_COURSE = "英語聽講(大學土木2乙)" 
+# 只要名稱包含這段就會觸發
+TARGET_COURSE = "英語聽講" 
 
 def send_dc(msg):
     if WEBHOOK:
-        try:
-            requests.post(WEBHOOK, json={"content": msg})
-        except:
-            print("Discord 發送失敗")
+        try: requests.post(WEBHOOK, json={"content": msg})
+        except: pass
 
 def main():
     s = requests.Session()
-    s.headers.update({
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
-    })
+    s.headers.update({'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'})
     
-    # 1. 執行登入
-    login_url = "https://irs.zuvio.com.tw/irs/submitLogin"
-    login_data = {"email": EMAIL, "password": PWD, "remember_me": "1"}
-    s.post(login_url, data=login_data)
+    # 1. 登入
+    s.post("https://irs.zuvio.com.tw/irs/submitLogin", data={"email": EMAIL, "password": PWD, "remember_me": "1"})
     
-    # 2. 獲取課程主頁
-    index_page = s.get("https://irs.zuvio.com.tw/student5/irs/index")
+    # 2. 進入學生首頁
+    res = s.get("https://irs.zuvio.com.tw/student5/irs/index")
     
-    # 3. 找出所有課程 ID
-    course_ids = re.findall(r"course\((\d+)\)", index_page.text)
+    # --- 強化版 ID 抓取：嘗試三種不同的網頁特徵 ---
+    ids = re.findall(r"course/(\d+)", res.text) + \
+          re.findall(r"course\((\d+)\)", res.text) + \
+          re.findall(r"student5/irs/rollcall/(\d+)", res.text)
+    
+    # 去除重複的 ID
+    course_ids = list(set(ids))
     
     if not course_ids:
-        print("❌ 登入成功但無法取得課程列表。")
+        print("❌ 依然找不到課程 ID。")
+        # 偵錯：印出網頁有沒有出現任何課程關鍵字
+        if "英語" in res.text: print("💡 提示：網頁裡有看到『英語』兩個字，但抓不到點名連結。")
         return
 
-    print(f"✅ 成功進入系統，偵測到 {len(course_ids)} 門課程。")
-    found_target = False
-
-    # 4. 檢查每一門課
+    print(f"✅ 成功！偵測到 {len(course_ids)} 門課程。")
+    
     for c_id in course_ids:
-        # 訪問點名頁面
-        rollcall_url = f"https://irs.zuvio.com.tw/student5/irs/rollcall/{c_id}"
-        res = s.get(rollcall_url)
+        # 檢查該課程的名稱與點名狀態
+        c_page = s.get(f"https://irs.zuvio.com.tw/student5/irs/rollcall/{c_id}")
         
-        # 判斷是否為目標課程
-        if TARGET_COURSE in res.text:
-            found_target = True
-            print(f"🎯 找到目標課程：{TARGET_COURSE}")
+        # 只要這門課的頁面有我們要的關鍵字
+        if TARGET_COURSE in c_page.text:
+            print(f"🎯 鎖定目標：ID {c_id}")
             
-            # 檢查是否有點名按鈕或正在點名的字樣
-            if "簽到" in res.text or "點名進行中" in res.text:
-                send_dc(f"🚨 **偵測到【{TARGET_COURSE}】開啟點名！**\n系統將於 30 秒後自動簽到...")
-                time.sleep(30)
-                
-                # 執行簽到 API
-                checkin_url = f"https://irs.zuvio.com.tw/student5/ajax/checkin/{c_id}"
-                # 傳送基本座標
-                checkin_res = s.post(checkin_url, data={"lat": 24.747, "lng": 121.745}) # 宜大約略座標
-                
-                if "success" in checkin_res.text or checkin_res.status_code == 200:
-                    send_dc(f"✅ **【{TARGET_COURSE}】自動點名成功！**")
-                    print("點名成功！")
+            if "簽到" in c_page.text or "點名進行中" in c_page.text:
+                send_dc(f"🚨 **偵測到【{TARGET_COURSE}】開啟點名！**")
+                time.sleep(10)
+                # 簽到 API
+                ck = s.post(f"https://irs.zuvio.com.tw/student5/ajax/checkin/{c_id}", data={"lat": 24.747, "lng": 121.745})
+                if "success" in ck.text or ck.status_code == 200:
+                    send_dc(f"✅ **【{TARGET_COURSE}】自動簽到成功！**")
                 else:
-                    send_dc(f"❌ **【{TARGET_COURSE}】簽到失敗：{checkin_res.text}**")
+                    send_dc(f"❌ 簽到失敗：{ck.text}")
             else:
                 print(f"ℹ️ {TARGET_COURSE} 目前沒在點名。")
-            break
-            
-    if not found_target:
-        print(f"❓ 在課程清單中沒看到「{TARGET_COURSE}」")
+            return
+
+    print(f"❓ 找不到包含「{TARGET_COURSE}」字樣的課程頁面。")
 
 if __name__ == "__main__":
     main()
