@@ -11,80 +11,71 @@ TARGET_COURSE = "英語聽講(大學土木2乙)"
 
 def send_dc(msg):
     if WEBHOOK:
-        try:
-            requests.post(WEBHOOK, json={"content": msg})
-        except:
-            print("Discord 發送失敗")
+        requests.post(WEBHOOK, json={"content": msg})
 
 def main():
     s = requests.Session()
-    # 增加瀏覽器標頭，讓 Zuvio 以為我們是真人
+    # 模擬手機 App 的瀏覽器標頭，這最不容易被擋
     s.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+        'Referer': 'https://irs.zuvio.com.tw/',
+        'Accept-Language': 'zh-TW,zh;q=0.9'
     })
     
-    # 1. 執行登入
+    # 1. 嘗試登入 (換成更基礎的登入入口)
     login_url = "https://irs.zuvio.com.tw/irs/submitLogin"
     login_data = {
         "email": EMAIL,
         "password": PWD,
         "remember_me": "1"
     }
-    login_res = s.post(login_url, data=login_data)
     
-    # 檢查是否登入成功 (透過網頁內容判斷)
-    if "學生" not in login_res.text and "首頁" not in login_res.text:
-        print("❌ 登入失敗，請確認帳號密碼是否正確")
-        # --- 加入下面這行 ---
-        print(f"偵錯訊息：網頁回傳內容前100字：{login_res.text[:100]}")
-        # ------------------
+    # 先抓一次首頁取得基礎 Cookie
+    s.get("https://irs.zuvio.com.tw/student5/irs/index")
+    
+    # 執行登入
+    res = s.post(login_url, data=login_data)
+    
+    # 2. 驗證登入狀態 (直接去抓課程頁面，看網址有沒有被踢回登入頁)
+    test_res = s.get("https://irs.zuvio.com.tw/student5/ajax/get_courses")
+    
+    if test_res.status_code != 200 or "courses" not in test_res.text:
+        print("❌ 登入仍舊失敗。請確認：")
+        print("1. Secrets 裡的帳號是否包含完整的學號或信箱")
+        print("2. 密碼是否完全正確 (無空格)")
+        # 顯示一點回傳內容方便 debug
+        print(f"伺服器回傳狀態碼: {test_res.status_code}")
         return
 
-    # 2. 直接訪問學生首頁確保 Session 建立
-    s.get("https://irs.zuvio.com.tw/student5/irs/index")
-
-    # 3. 獲取課程清單 (改用另一個更穩定的 API)
-    course_api = "https://irs.zuvio.com.tw/student5/ajax/get_courses"
-    try:
-        res = s.get(course_api)
-        data = res.json()
-        
-        if 'courses' not in data:
-            print(f"❌ 找不到課程欄位，伺服器回應：{res.text}")
-            return
+    print("✅ 登入成功！正在掃描課程...")
+    
+    # 3. 處理課程資料
+    data = test_res.json()
+    found = False
+    for course in data.get('courses', []):
+        if TARGET_COURSE in course['name']:
+            found = True
+            print(f"🎯 鎖定課程：{course['name']}")
             
-        courses = data['courses']
-        found = False
-        
-        for course in courses:
-            if TARGET_COURSE in course['name']:
-                found = True
-                print(f"✅ 找到課程：{course['name']}")
+            if course.get('is_on_rollcall'):
+                send_dc(f"🚨 **偵測到【{course['name']}】開啟點名！**\n系統將於 60 秒後自動簽到...")
+                time.sleep(60)
                 
-                # 檢查是否點名
-                if course.get('is_on_rollcall'):
-                    send_dc(f"🚨 **偵測到【{course['name']}】開啟點名！**\n1分鐘後自動簽到...")
-                    time.sleep(60)
-                    
-                    # 4. 執行簽到
-                    c_id = course['id']
-                    checkin_url = f"https://irs.zuvio.com.tw/student5/ajax/checkin/{c_id}"
-                    # 模擬座標 (可視情況修改為學校座標)
-                    checkin_res = s.post(checkin_url, data={"lat": 25.0, "lng": 121.5})
-                    
-                    if "success" in checkin_res.text or checkin_res.status_code == 200:
-                        send_dc(f"✅ **【{course['name']}】自動點名成功！**")
-                    else:
-                        send_dc(f"❌ **【{course['name']}】點名回報異常：{checkin_res.text}**")
+                # 4. 執行簽到
+                c_id = course['id']
+                checkin_url = f"https://irs.zuvio.com.tw/student5/ajax/checkin/{c_id}"
+                # 座標設為 0,0 或是隨便一個座標，通常一般點名不檢查這個，只要有傳資料就好
+                checkin_res = s.post(checkin_url, data={"lat": 25.0, "lng": 121.5})
+                
+                if "success" in checkin_res.text or checkin_res.status_code == 200:
+                    send_dc(f"✅ **【{course['name']}】自動點名成功！**")
                 else:
-                    print(f"ℹ️ {course['name']} 目前沒有點名。")
-        
-        if not found:
-            print(f"❓ 登入成功，但在課程清單中沒看到「{TARGET_COURSE}」")
-            print("請檢查課程名稱是否完全正確，或嘗試縮短關鍵字（例如只用：英語聽講）")
-
-    except Exception as e:
-        print(f"💥 發生錯誤：{str(e)}")
+                    send_dc(f"❌ **【{course['name']}】點名異常：{checkin_res.text}**")
+            else:
+                print(f"😴 {course['name']} 目前未開啟點名。")
+    
+    if not found:
+        print(f"❓ 找不到名為「{TARGET_COURSE}」的課程。")
 
 if __name__ == "__main__":
     main()
