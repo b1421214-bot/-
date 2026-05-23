@@ -43,7 +43,7 @@ def main():
 
     # 3. 判斷是否正在點名
     # 當點名開啟時，網頁會出現「簽到」按鈕或「點名進行中」字樣
-   if True:
+    if True:
         send_dc(f"🚨 **偵測到【{TARGET_NAME}】開啟點名！**\n系統將於 20 秒後自動簽到...")
         time.sleep(20)
         
