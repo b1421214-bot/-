@@ -14,20 +14,18 @@ def send_dc(msg):
 
 def main():
     s = requests.Session()
-    s.headers.update({
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
-    })
-    
-    # 1. 直接對入口頁面做登入
+    # 1. 嘗試登入
     login_url = "https://irs.zuvio.com.tw/irs/submitLogin"
-    s.post(login_url, data={"email": EMAIL, "password": PWD, "remember_me": "1"})
+    res = s.post(login_url, data={"email": EMAIL, "password": PWD, "remember_me": "1"})
     
-    # 2. 訪問學生主頁 (這是最不會 404 的地方)
-    index_page = s.get("https://irs.zuvio.com.tw/student5/irs/index")
+    # 2. 印出登入後的最終網址
+    print(f"登入後的網址：{res.url}")
     
-    # 3. 從 HTML 網頁內容中直接找課程 ID
-    # Zuvio 的網頁會把課程放在 onclick="course(1234567)" 裡面
-    course_ids = re.findall(r"course\((\d+)\)", index_page.text)
+    # 3. 檢查關鍵字
+    if "login" in res.url:
+        print("❌ 登入失敗：被踢回了登入頁面。可能是帳密錯誤或需要驗證碼。")
+    else:
+        print(f"✅ 登入後的網頁標題：{re.search('<title>(.*?)</title>', res.text).group(1)}")
     
     if not course_ids:
         print("❌ 無法從網頁取得任何課程。請檢查帳密是否正確，或帳號內是否有課程。")
