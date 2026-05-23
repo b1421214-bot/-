@@ -20,7 +20,6 @@ def send_dc(msg):
 
 def main():
     s = requests.Session()
-    send_dc("🚀 嗶嗶嗶！這是來自 GitHub Actions 的連線測試，你的 Discord 機器人已經準備好下週三幫你簽到了！")
     # 模擬手機瀏覽器，避免被擋
     s.headers.update({
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
