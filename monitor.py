@@ -35,6 +35,9 @@ def main():
     # 檢查是否登入成功 (透過網頁內容判斷)
     if "學生" not in login_res.text and "首頁" not in login_res.text:
         print("❌ 登入失敗，請確認帳號密碼是否正確")
+        # --- 加入下面這行 ---
+        print(f"偵錯訊息：網頁回傳內容前100字：{login_res.text[:100]}")
+        # ------------------
         return
 
     # 2. 直接訪問學生首頁確保 Session 建立
