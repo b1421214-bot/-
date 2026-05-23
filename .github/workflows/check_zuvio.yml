@@ -1,0 +1,29 @@
+name: Zuvio 排程監控
+
+on:
+  schedule:
+    # 每 5 分鐘執行一次 (週一至週五，台灣時間 08:00 - 18:00)
+    - cron: '*/5 2-4 * * 3'
+  workflow_dispatch: # 允許手動執行測試
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 複製程式碼
+        uses: actions/checkout@v3
+
+      - name: 設定 Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: 安裝套件
+        run: pip install requests
+
+      - name: 執行監控腳本
+        env:
+          ZUVIO_EMAIL: ${{ secrets.ZUVIO_EMAIL }}
+          ZUVIO_PASSWORD: ${{ secrets.ZUVIO_PASSWORD }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python monitor.py
