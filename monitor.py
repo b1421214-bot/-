@@ -1,13 +1,10 @@
 import os
 import requests
-import re
 import time
 
 EMAIL = os.environ.get('ZUVIO_EMAIL')
 PWD = os.environ.get('ZUVIO_PASSWORD')
 WEBHOOK = os.environ.get('DISCORD_WEBHOOK')
-
-# 只要名稱包含這段就會觸發
 TARGET_COURSE = "英語聽講" 
 
 def send_dc(msg):
@@ -22,47 +19,55 @@ def main():
     # 1. 登入
     s.post("https://irs.zuvio.com.tw/irs/submitLogin", data={"email": EMAIL, "password": PWD, "remember_me": "1"})
     
-    # 2. 進入學生首頁
-    res = s.get("https://irs.zuvio.com.tw/student5/irs/index")
-    
-    # --- 強化版 ID 抓取：嘗試三種不同的網頁特徵 ---
-    ids = re.findall(r"course/(\d+)", res.text) + \
-          re.findall(r"course\((\d+)\)", res.text) + \
-          re.findall(r"student5/irs/rollcall/(\d+)", res.text)
-    
-    # 去除重複的 ID
-    course_ids = list(set(ids))
-    
-    if not course_ids:
-        print("❌ 依然找不到課程 ID。")
-        # 偵錯：印出網頁有沒有出現任何課程關鍵字
-        if "英語" in res.text: print("💡 提示：網頁裡有看到『英語』兩個字，但抓不到點名連結。")
+    # 2. 核心：直接向 Zuvio API 請求課程清單 (不管 student3 還是 student5 都試一遍)
+    courses = []
+    for ver in ["student5", "student3"]:
+        try:
+            api_url = f"https://irs.zuvio.com.tw/{ver}/ajax/get_courses"
+            res = s.get(api_url)
+            if res.status_code == 200 and "courses" in res.text:
+                courses = res.json().get('courses', [])
+                if courses:
+                    print(f"✅ 成功透過 {ver} 取得課程清單！")
+                    break
+        except:
+            continue
+
+    if not courses:
+        print("❌ 登入成功但 API 未回傳課程。")
         return
 
-    print(f"✅ 成功！偵測到 {len(course_ids)} 門課程。")
+    print(f"📊 偵測到 {len(courses)} 門課程。")
     
-    for c_id in course_ids:
-        # 檢查該課程的名稱與點名狀態
-        c_page = s.get(f"https://irs.zuvio.com.tw/student5/irs/rollcall/{c_id}")
+    # 3. 掃描目標課程
+    for c in courses:
+        c_name = c.get('name', '')
+        c_id = c.get('id')
         
-        # 只要這門課的頁面有我們要的關鍵字
-        if TARGET_COURSE in c_page.text:
-            print(f"🎯 鎖定目標：ID {c_id}")
+        if TARGET_COURSE in c_name:
+            print(f"🎯 鎖定：{c_name} (ID: {c_id})")
             
-            if "簽到" in c_page.text or "點名進行中" in c_page.text:
-                send_dc(f"🚨 **偵測到【{TARGET_COURSE}】開啟點名！**")
+            # 檢查點名狀態
+            # 有些版本點名資訊就在 API 裡 (is_on_rollcall)
+            is_on = c.get('is_on_rollcall')
+            
+            # 保險起見，去檢查一下點名網頁內容
+            roll_page = s.get(f"https://irs.zuvio.com.tw/student5/irs/rollcall/{c_id}")
+            
+            if is_on or "簽到" in roll_page.text or "點名進行中" in roll_page.text:
+                send_dc(f"🚨 **偵測到【{c_name}】開啟點名！**")
                 time.sleep(10)
-                # 簽到 API
+                # 執行簽到
                 ck = s.post(f"https://irs.zuvio.com.tw/student5/ajax/checkin/{c_id}", data={"lat": 24.747, "lng": 121.745})
-                if "success" in ck.text or ck.status_code == 200:
-                    send_dc(f"✅ **【{TARGET_COURSE}】自動簽到成功！**")
+                if "success" in ck.text:
+                    send_dc(f"✅ **【{c_name}】自動簽到成功！**")
                 else:
-                    send_dc(f"❌ 簽到失敗：{ck.text}")
+                    send_dc(f"⚠️ 嘗試簽到，回應：{ck.text}")
             else:
-                print(f"ℹ️ {TARGET_COURSE} 目前沒在點名。")
+                print(f"ℹ️ {c_name} 目前沒有點名。")
             return
 
-    print(f"❓ 找不到包含「{TARGET_COURSE}」字樣的課程頁面。")
+    print(f"❓ 找不到包含「{TARGET_COURSE}」的課程。")
 
 if __name__ == "__main__":
     main()
