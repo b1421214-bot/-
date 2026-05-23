@@ -43,9 +43,16 @@ def main():
 
     # 3. 判斷是否正在點名
     # 當點名開啟時，網頁會出現「簽到」按鈕或「點名進行中」字樣
-    if True:
-        send_dc(f"🚨 **偵測到【{TARGET_NAME}】開啟點名！**\n系統將於 20 秒後自動簽到...")
-        time.sleep(20)
+        if "簽到" in res.text or "點名進行中" in res.text:
+            send_dc("🚨 偵測到【" + TARGET_NAME + "】開啟點名！")
+            time.sleep(20)
+            check_in_url = "https://irs.zuvio.com.tw/app_v2/check_in/" + MY_COURSE_ID
+            res = s.get(check_in_url)
+            send_dc("✅ 簽到回傳結果：" + res.text)
+        else:
+            # 就是這一段！確保這兩行沒有被刪掉，且縮進對齊
+            print("目前沒有點名中")
+            send_dc("系統巡邏中：目前【" + TARGET_NAME + "】沒有點名。")
         
         # 4. 執行簽到 API
         # 經常用的是 student5/ajax/checkin 接口
@@ -59,8 +66,6 @@ def main():
             print("簽到成功！")
         else:
             send_dc(f"⚠️ 簽到回傳結果：{ck_res.text}")
-    else:
-        print(f"ℹ️ {TARGET_NAME} 目前沒有點名。")
 
 if __name__ == "__main__":
     main()
