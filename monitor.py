@@ -2,21 +2,27 @@ import requests
 import os
 import time
 
-# --- 設定區域 ---
+# --- 讀取 Secrets ---
 EMAIL = os.environ.get('ZUVIO_EMAIL')
 PWD = os.environ.get('ZUVIO_PASSWORD')
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
+
+# 防呆檢查：如果抓不到會報錯提示
+if not WEBHOOK_URL:
+    raise ValueError("錯誤：找不到 WEBHOOK_URL！請檢查 GitHub Settings 裡的 Secrets 設定。")
 
 MY_COURSE_ID = "1496033"
 TARGET_NAME = "英語聽講(大學土木2乙)"
 
 def send_dc(msg):
     payload = {"content": msg}
-    requests.post(WEBHOOK_URL, json=payload)
+    try:
+        requests.post(WEBHOOK_URL, json=payload)
+    except Exception as e:
+        print(f"發送 Discord 失敗: {e}")
 
 def run_monitor():
     s = requests.Session()
-    
     # 1. 登入
     login_url = "https://irs.zuvio.com.tw/b_irs/login/login_by_mail"
     login_data = {'email': EMAIL, 'password': PWD}
@@ -32,9 +38,8 @@ def run_monitor():
         time.sleep(20)
         check_in_url = f"https://irs.zuvio.com.tw/app_v2/check_in/{MY_COURSE_ID}"
         check_res = s.get(check_in_url)
-        send_dc(f"✅ 自動簽到執行完畢。回傳結果：{check_res.text[:100]}")
+        send_dc(f"✅ 自動簽到執行完畢。")
     else:
-        # 現在不是上課時間，執行後會跑這一段
         print("目前沒有點名中")
         send_dc(f"系統巡邏中：目前【{TARGET_NAME}】沒有點名。")
 
