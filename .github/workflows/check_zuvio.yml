@@ -2,12 +2,10 @@ name: Zuvio 排程監控
 
 on:
   schedule:
-    # 將原本的 */5 改成 *，代表每一分鐘執行一次
-    # 台北 10:00-13:00 (UTC 02-05)
-    # 台北 17:00-19:00 (UTC 09-11)
-    - cron: "* 2-5,9-11 * * 2,3"
-  workflow_dispatch: 
-
+    # 2,3 是週二週三，1 是週一（為了你現在測試）
+    # 15 是 UTC 時間，對應台北時間 23:00
+    - cron: "* 2-5,9-11,15 * * 1,2,3" 
+  workflow_dispatch: # 保留手動觸發功能
 jobs:
   build:
     runs-on: ubuntu-latest
