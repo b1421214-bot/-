@@ -1,29 +1,25 @@
-name: 簽到系統
+name: Zuvio 簽到系統
 
 on:
   schedule:
-    # 2-5: 台北 10:00-13:00 (英語聽講)
-    # 9-11: 台北 17:00-19:00 (GD邏輯)
-    # 2,3: 星期二、星期三
-    - cron: "* 2-5,9-11 * * 2,3"
+    # 台北時間 10:00-13:00 (UTC 2-5)
+    # 台北時間 17:00-19:30 (UTC 9-11)
+    - cron: "*/5 2-5,9-11 * * 2,3"
   workflow_dispatch:
-  
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    # 新增權限設定，確保 Action 有權讀取倉庫內容
-    permissions:
-      contents: read
     steps:
-      - name: 複製程式碼
-        uses: actions/checkout@v4 # 更新到 v4
+      - name: 檢出程式碼
+        uses: actions/checkout@v3
 
       - name: 設定 Python
-        uses: actions/setup-python@v5 # 更新到 v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: 安裝套件
+      - name: 安裝必要套件
         run: pip install requests
 
       - name: 執行監控腳本
