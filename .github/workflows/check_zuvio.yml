@@ -5,12 +5,21 @@ on:
   schedule:
     - cron: "*/5 9-11 * * 2,3"
 
+# --- 加入下面這段權限宣告 ---
+permissions:
+  contents: read
+  actions: write
+# -------------------------
+
 jobs:
   check-in:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          # 這裡手動指定路徑，避免 GitHub 因為專案名是 "-" 而搞錯
+          repository: ${{ github.repository }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
