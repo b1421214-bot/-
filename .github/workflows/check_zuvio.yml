@@ -1,36 +1,30 @@
-name: Zuvio_Robot
+name: Zuvio_Auto_Check
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/5 9-11 * * 2,3"
+  workflow_dispatch:  # 保留手動觸發 (Cron-job 用)
+  # 拿掉原本的 GitHub 內建 schedule，全部交給外部 Cron-job，減少衝突
 
-# --- 加入下面這段權限宣告 ---
 permissions:
   contents: read
-  actions: write
-# -------------------------
 
 jobs:
   check-in:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          # 這裡手動指定路徑，避免 GitHub 因為專案名是 "-" 而搞錯
-          repository: ${{ github.repository }}
+      - name: Checkout Code
+        uses: actions/checkout@v4 # 升級到 v4 更穩定
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Run Script
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Monitor
         env:
           ZUVIO_EMAIL: ${{ secrets.ZUVIO_EMAIL }}
           ZUVIO_PASSWORD: ${{ secrets.ZUVIO_PASSWORD }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          pip install requests
-          python monitor.py
+        run: python monitor.py
